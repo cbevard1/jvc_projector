@@ -149,6 +149,7 @@ class JVCProjector:
         # projector is correct, then return the message.
         if ack:
             ACK = jvc_sock.recv(len(ack))
+            print(ACK)
 
             if ACK == ack:
                 message = jvc_sock.recv(1024)
@@ -178,6 +179,6 @@ class JVCProjector:
         return PowerStates(message).name
 
     def is_on(self):
-        on = [PowerStates.lamp_on.value, PowerStates.reserved.value]
+        on = ["lamp_on", "reserved"]
         return self.power_state() in on
 
