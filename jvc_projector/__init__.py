@@ -1,7 +1,124 @@
-import socket
+import asyncio
 from enum import Enum
 from time import sleep
 import datetime
+
+class JVCProjectorClient():
+    """JVC Projector Control"""
+
+    def __init__(
+            self,
+            host: str,
+            port: int = 20554,
+            delay_ms: int = 600,
+            connect_timeout: int = 60,
+    ) -> None:
+
+        "Initialize the connection with the projector"
+        self.host = host
+        self.port = port
+        self.connect_timeout = connect_timeout
+        self.delay = datetime.timedelta(microseconds=(delay_ms * 1000))
+        self.last_command_time = datetime.datetime.now() - datetime.timedelta(seconds=10)
+
+    async def throttle(self):
+        if self.delay == 0:
+            return
+
+        delta = datetime.datetime.now() - self.last_command_time
+
+        if self.delay > delta:
+            await asyncio.sleep((self.delay - delta).total_seconds())
+
+        return
+
+    async def _send_command(self, operation, ack=None):
+        JVC_GREETING = b'PJ_OK'
+        JVC_REQ = b'PJREQ'
+        JVC_ACK = b'PJACK'
+        result = False
+
+        await self.throttle()
+
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), timeout=self.connect_timeout)
+
+        # jvc_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # jvc_sock.settimeout(self.connect_timeout)
+        # jvc_sock.connect((self.host, self.port)) # connect to projector
+
+        # 3 step handshake:
+        # Projector sends PJ_OK, client sends PJREQ, projector replies with PJACK
+        # first, after connecting, see if we receive PJ_OK. If not, raise exception
+        if await reader.read(len(JVC_GREETING)) != JVC_GREETING:
+            raise JVCHandshakeError("Projector did not reply with correct PJ_OK greeting")
+
+        # try sending PJREQ, if there's an error, raise exception
+        # try:
+        #     writer.write(JVC_REQ)
+        # except socket.error as e:
+        #     raise Exception("Socket exception when sending PJREQ")
+        writer.write(JVC_REQ)
+
+        # see if we receive PJACK, if not, raise exception
+        if await reader.read(len(JVC_ACK)) != JVC_ACK:
+            raise JVCHandshakeError("Projector did not send PJACK")
+
+        # 3 step connection is verified, send the command
+        writer.write(operation)
+
+        # if we send a command that returns info, the projector will send
+        # an ack, followed by the message. Check to see if the ack sent by
+        # projector is correct, then return the message.
+        if ack:
+            ACK = await reader.read(len(ack))
+
+            if ACK == ack:
+                message = await reader.read(1024)
+                result = message
+
+        writer.close()
+
+        self.last_command_time = datetime.datetime.now()
+
+        return result
+
+    async def power_on(self):
+        return await self._send_command(Commands.power_on.value)
+
+    async def power_off(self):
+        return await self._send_command(Commands.power_off.value)
+
+    async def command(self, command_string):
+        if not hasattr(Commands, command_string):
+            return False
+        else:
+            await self._send_command(Commands[command_string].value)
+            return True
+
+    async def get_mac(self):
+        response = await self._send_command(Commands.get_mac, ack=ACKs.mac_ack)
+        return response[5:-1].decode("ascii")
+
+    async def get_model(self):
+        model = await self._send_command(Commands.model, ack=ACKs.model_ack)
+        return model[5:-1].decode("ascii")
+
+    async def power_state(self):
+        message = await self._send_command(Commands.power_status.value, ack=ACKs.power_ack.value)
+        return PowerStates(message).name
+
+    async def is_on(self):
+        on = ["lamp_on", "reserved"]
+        return await self.power_state() in on
+
+
+class JVCCannotConnectError(Exception):
+    """Exception when we can't connect to the projector"""
+    pass
+
+class JVCHandshakeError(Exception):
+    """Exception when there was a problem with the 3 step handshake"""
+    pass
 
 
 class Commands(Enum):
@@ -23,7 +140,7 @@ class Commands(Enum):
     # power status query commands
     power_status   = b"\x3F\x89\x01\x50\x57\x0A"
     current_output = b"\x3F\x89\x01\x49\x50\x0A"
-    
+
     # picture mode commands
     pm_cinema = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x31\x0A"
     pm_hdr = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x34\x0A"
@@ -72,6 +189,12 @@ class Commands(Enum):
     anamorphic_b = b"\x21\x89\x01\x49\x4E\x56\x53\x32\x0A"
     anamorphic_c = b"\x21\x89\x01\x49\x4E\x56\x53\x33\x0A"
 
+    #MAC Address
+    get_mac = b"\x3F\x89\x01LSMA\x0A"
+
+    #model
+    model = b"\x3F\x89\x01\x4D\x44\x0A"
+
 
 
 class PowerStates(Enum):
@@ -90,95 +213,5 @@ class PowerStates(Enum):
 class ACKs(Enum):
     power_ack = b"\x06\x89\x01\x50\x57\x0A"
     input_ack = b"\x06\x89\x01\x49\x50\x0A"
-
-
-class JVCProjector:
-    """JVC Projector Control"""
-
-    def __init__(self, host, port=20554, delay_ms=600, connect_timeout=60):
-        self.host = host
-        self.port = port
-        self.connect_timeout = connect_timeout
-        self.delay = datetime.timedelta(microseconds=(delay_ms * 1000))
-        self.last_command_time = datetime.datetime.now() - datetime.timedelta(seconds=10)
-
-    def throttle(self):
-        if self.delay == 0:
-            return
-
-        delta = datetime.datetime.now() - self.last_command_time
-
-        if self.delay > delta:
-            sleep((self.delay - delta).total_seconds())
-
-        return
-
-    def _send_command(self, operation, ack=None):
-        JVC_GREETING = b'PJ_OK'
-        JVC_REQ = b'PJREQ'
-        JVC_ACK = b'PJACK'
-        result = False
-
-        self.throttle()
-
-        jvc_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        jvc_sock.settimeout(self.connect_timeout)
-        jvc_sock.connect((self.host, self.port)) # connect to projector
-
-        # 3 step handshake:
-        # Projector sends PJ_OK, client sends PJREQ, projector replies with PJACK
-        # first, after connecting, see if we receive PJ_OK. If not, raise exception
-        if jvc_sock.recv(len(JVC_GREETING)) != JVC_GREETING:
-            raise Exception("Projector did not reply with correct PJ_OK greeting")
-
-        # try sending PJREQ, if there's an error, raise exception
-        try:
-            jvc_sock.sendall(JVC_REQ)
-        except socket.error as e:
-            raise Exception("Socket exception when sending PJREQ")
-
-        # see if we receive PJACK, if not, raise exception
-        if jvc_sock.recv(len(JVC_ACK)) != JVC_ACK:
-            raise Exception("Socket exception on PJACK")
-
-        # 3 step connection is verified, send the command
-        jvc_sock.sendall(operation)
-
-        # if we send a command that returns info, the projector will send
-        # an ack, followed by the message. Check to see if the ack sent by
-        # projector is correct, then return the message.
-        if ack:
-            ACK = jvc_sock.recv(len(ack))
-            print(ACK)
-
-            if ACK == ack:
-                message = jvc_sock.recv(1024)
-                result = message
-
-        jvc_sock.close()
-
-        self.last_command_time = datetime.datetime.now()
-
-        return result
-
-    def power_on(self):
-        self._send_command(Commands.power_on.value)
-
-    def power_off(self):
-        self._send_command(Commands.power_off.value)
-
-    def command(self, command_string):
-        if not hasattr(Commands, command_string):
-            return False
-        else:
-            self._send_command(Commands[command_string].value)
-            return True
-
-    def power_state(self):
-        message = self._send_command(Commands.power_status.value, ack=ACKs.power_ack.value)
-        return PowerStates(message).name
-
-    def is_on(self):
-        on = ["lamp_on", "reserved"]
-        return self.power_state() in on
-
+    mac_ack = b"\x06\x89\x01LS\x0A"
+    model_ack = b"\x06\x89\x01\x4D\x44\x0A"
