@@ -1,87 +1,92 @@
 from enum import Enum
+# Headers
+OPR = b"!\x89\x01" # operation
+REF = b"?\x89\x01" # reference
+RES = b"@\x89\x01" # response
 
 class Commands(Enum):
     # power commands
-    power_on = b"\x21\x89\x01\x50\x57\x31\x0A"
-    power_off = b"\x21\x89\x01\x50\x57\x30\x0A"
+    power_on  = OPR + b'PW1\n'
+    power_off = OPR + b"PW0\n"
 
     # lens memory commands
-    memory1 = b"\x21\x89\x01\x49\x4E\x4D\x4C\x30\x0A"
-    memory2 = b"\x21\x89\x01\x49\x4E\x4D\x4C\x31\x0A"
-    memory3 = b"\x21\x89\x01\x49\x4E\x4D\x4C\x32\x0A"
-    memory4 = b"\x21\x89\x01\x49\x4E\x4D\x4C\x33\x0A"
-    memory5 = b"\x21\x89\x01\x49\x4E\x4D\x4C\x34\x0A"
+    memory1 = OPR + b"INML0\n"
+    memory2 = OPR + b"INML1\n"
+    memory3 = OPR + b"INML2\n"
+    memory4 = OPR + b"INML3\n"
+    memory5 = OPR + b"INML4\n"
 
     # input commands
-    hdmi1 = b"\x21\x89\x01\x49\x50\x36\x0A"
-    hdmi2 = b"\x21\x89\x01\x49\x50\x37\x0A"
-
-    # power status query commands
-    power_status   = b"\x3F\x89\x01\x50\x57\x0A"
-    current_output = b"\x3F\x89\x01\x49\x50\x0A"
+    hdmi1 = OPR + b"IP6\n"
+    hdmi2 = OPR + b"IP7\n"
 
     # picture mode commands
-    pm_cinema = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x31\x0A"
-    pm_hdr = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x34\x0A"
-    pm_natural = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x33\x0A"
-    pm_film = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x30\x0A"
-    pm_THX = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x36\x0A"
-    pm_user1 = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x43\x0A"
-    pm_user2 = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x44\x0A"
-    pm_user3 = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x45\x0A"
-    pm_user4 = b"\x21\x89\x01\x50\x4D\x50\x4D\x30\x46\x0A"
-    pm_user5 = b"\x21\x89\x01\x50\x4D\x50\x4D\x31\x30\x0A"
-    pm_user6 = b"\x21\x89\x01\x50\x4D\x50\x4D\x31\x31\x0A"
-    pm_hlg = b"\x21\x89\x01\x50\x4D\x50\x4D\x31\x34\x0A"
+    pm_cinema  = OPR + b"PMPM01\n"
+    pm_hdr     = OPR + b"PMPM04\n"
+    pm_natural = OPR + b"PMPM0\x33\n"
+    pm_film    = OPR + b"PMPM00\n"
+    pm_THX     = OPR + b"PMPM06\n"
+    pm_user1   = OPR + b"PMPM0C\n"
+    pm_user2   = OPR + b"PMPM0D\n"
+    pm_user3   = OPR + b"PMPM0E\n"
+    pm_user4   = OPR + b"PMPM0F\n"
+    pm_user5   = OPR + b"PMPM\x310\n"
+    pm_user6   = OPR + b"PMPM11\n"
+    pm_hlg     = OPR + b"PMPM14\n"
 
     # low latency enable/disable
-    pm_low_latency_enable = b"\x21\x89\x01\x50\x4D\x4C\x4C\x31\x0A"
-    pm_low_latency_disable = b"\x21\x89\x01\x50\x4D\x4C\x4C\x30\x0A"
+    pm_low_latency_enable  = OPR + b"PMLL1\n"
+    pm_low_latency_disable = OPR + b"PMLL0\n"
 
     # mask commands
-    mask_off = b"\x21\x89\x01\x49\x53\x4D\x41\x32\x0A"
-    mask_custom1 = b"\x21\x89\x01\x49\x53\x4D\x41\x30\x0A"
-    mask_custom2 = b"\x21\x89\x01\x49\x53\x4D\x41\x31\x0A"
-    mask_custom3 = b"\x21\x89\x01\x49\x53\x4D\x41\x33\x0A"
+    mask_off     = OPR + b"ISMA2\n"
+    mask_custom1 = OPR + b"ISMA0\n"
+    mask_custom2 = OPR + b"ISMA1\n"
+    mask_custom3 = OPR + b"ISMA3\n"
 
     #lamp commands
-    lamp_high = b"\x21\x89\x01\x50\x4D\x4C\x50\x31\x0A"
-    lamp_low = b"\x21\x89\x01\x50\x4D\x4C\x50\x30\x0A"
+    lamp_high = OPR + b"PMLP1\n"
+    lamp_low  = OPR + b"PMLP0\n"
 
     #menu controls
-    menu = b"\x21\x89\x01\x52\x43\x37\x33\x32\x45\x0A"
-    menu_down = b"\x21\x89\x01\x52\x43\x37\x33\x30\x32\x0A"
-    menu_left = b"\x21\x89\x01\x52\x43\x37\x33\x33\x36\x0A"
-    menu_right = b"\x21\x89\x01\x52\x43\x37\x33\x33\x34\x0A"
-    menu_up = b"\x21\x89\x01\x52\x43\x37\x33\x30\x31\x0A"
-    menu_ok = b"\x21\x89\x01\x52\x43\x37\x33\x32\x46\x0A"
-    menu_back = b"\x21\x89\x01\x52\x43\x37\x33\x30\x33\x0A"
+    menu       = OPR + b"RC732E\n"
+    menu_down  = OPR + b"RC7302\n"
+    menu_left  = OPR + b"RC7336\n"
+    menu_right = OPR + b"RC7334\n"
+    menu_up    = OPR + b"RC7301\n"
+    menu_ok    = OPR + b"RC732F\n"
+    menu_back  = OPR + b"RC7303\n"
 
     #Lens Aperture commands
-    aperture_off = b"\x21\x89\x01\x50\x4D\x44\x49\x30\x0a"
-    aperture_auto1 = b"\x21\x89\x01\x50\x4D\x44\x49\x31\x0a"
-    aperture_auto2 = b"\x21\x89\x01\x50\x4D\x44\x49\x32\x0a"
+    aperture_off = OPR + b"PMDI0\n"
+    aperture_auto1 = OPR + b"PMDI1\n"
+    aperture_auto2 = OPR + b"PMDI2\n"
 
     #Anamorphic commands
-    anamorphic_off = b"\x21\x89\x01\x49\x4E\x56\x53\x30\x0A"
-    anamorphic_a = b"\x21\x89\x01\x49\x4E\x56\x53\x31\x0A"
-    anamorphic_b = b"\x21\x89\x01\x49\x4E\x56\x53\x32\x0A"
-    anamorphic_c = b"\x21\x89\x01\x49\x4E\x56\x53\x33\x0A"
+    anamorphic_off = OPR + b"INVS0\n"
+    anamorphic_a = OPR + b"INVS1\n"
+    anamorphic_b = OPR + b"INVS2\n"
+    anamorphic_c = OPR + b"INVS3\n"
 
-    #MAC Address
-    get_mac = b"\x3F\x89\x01LSMA\x0A"
+    #MAC Address query
+    get_mac = REF + b"LSMA\n"
 
-    #model
-    model = b"\x3F\x89\x01\x4D\x44\x0A"
+    #model query
+    model = REF + b"MD\n"
+
+    # power status query commands
+    power_status   = REF + b"PW\n"
+    current_output = REF + b"IP\n"
+
 
 class PowerStates(Enum):
-    standby   = b"\x40\x89\x01\x50\x57\x30\x0A"
-    cooling   = b"\x40\x89\x01\x50\x57\x32\x0A"
-    emergency = b"\x40\x89\x01\x50\x57\x34\x0A"
+    standby   = RES + b"PW0\n"
+    cooling   = RES + b"PW2\n"
+    emergency = RES + b"PW4\n"
 
     # on some projectors like the DLA-X5900, the status
     # is returned as the "reserved" on below when the
     # projector lamp is warming up and "lamp_on" when
     # the lamp is on
-    lamp_on  = b"\x40\x89\x01\x50\x57\x31\x0A"
-    reserved = b"\x40\x89\x01\x50\x57\x33\x0A"
+    lamp_on  = RES + b"PW1\n"
+    reserved = RES + b"PW3\n"
