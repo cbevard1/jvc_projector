@@ -23,14 +23,14 @@ class Commands(Enum):
     # picture mode commands
     pm_cinema  = OPR + b"PMPM01\n"
     pm_hdr     = OPR + b"PMPM04\n"
-    pm_natural = OPR + b"PMPM0\x33\n"
+    pm_natural = OPR + b"PMPM03\n"
     pm_film    = OPR + b"PMPM00\n"
     pm_THX     = OPR + b"PMPM06\n"
     pm_user1   = OPR + b"PMPM0C\n"
     pm_user2   = OPR + b"PMPM0D\n"
     pm_user3   = OPR + b"PMPM0E\n"
     pm_user4   = OPR + b"PMPM0F\n"
-    pm_user5   = OPR + b"PMPM\x310\n"
+    pm_user5   = OPR + b"PMPM10\n"
     pm_user6   = OPR + b"PMPM11\n"
     pm_hlg     = OPR + b"PMPM14\n"
 
