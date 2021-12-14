@@ -185,5 +185,5 @@ class JVCHandshakeError(Exception):
     pass
 
 class JVCCommunicationError(Exception):
-    """Exception when there was a problem with the 3 step handshake"""
+    """Exception when there was a communication issue"""
     pass
