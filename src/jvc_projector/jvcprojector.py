@@ -17,7 +17,7 @@ import asyncio
 from jvccommands import Commands, PowerStates
 from datetime import datetime
 
-class JVCProjectorClient():
+class JVCProjectorClient:
     """This class handles sending and receiving information from the projector.
 
     Args:
