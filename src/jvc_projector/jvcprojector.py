@@ -13,16 +13,15 @@ class JVCProjectorClient():
     ) -> None:
 
         "Initialize the connection with the projector"
-        self.host = host
-        self.port = port
-        self.connect_timeout = connect_timeout
-        self.delay = delay_seconds
+        self.host: str = host
+        self.port: int = port
+        self.connect_timeout: int = connect_timeout
+        self.delay: float = delay_seconds
 
-    async def _send_command(self, operation):
+    async def _send_command(self, operation: bytes) -> bytes:
         JVC_GREETING = b'PJ_OK'
         JVC_REQ = b'PJREQ'
         JVC_ACK = b'PJACK'
-        result = False
 
         reader, writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), timeout=self.connect_timeout)
 
@@ -53,7 +52,7 @@ class JVCProjectorClient():
         ack = b"\x06\x89\x01" + operation[3:5] + b"\x0A"
         ACK = await reader.read(len(ack))
 
-        result = None
+        result = b''
         wait_for_response = True if operation[0:1] == b'?' else False
         if ACK == ack:
             if wait_for_response:
@@ -68,38 +67,38 @@ class JVCProjectorClient():
 
         return result
 
-    async def power_on(self):
+    async def power_on(self) -> bytes:
         return await self._send_command(Commands.power_on.value)
 
-    async def power_off(self):
+    async def power_off(self) -> bytes:
         return await self._send_command(Commands.power_off.value)
 
-    async def command(self, command_string):
+    async def command(self, command_string: str) -> bool:
         if not hasattr(Commands, command_string):
             return False
         else:
             await self._send_command(Commands[command_string].value)
             return True
 
-    async def get_mac(self):
+    async def get_mac(self) -> str:
         mac = await self._send_command(Commands.get_mac.value)
-        if mac is not None:
-            return mac[5:-1].decode("ascii")
+        if mac:
+            return mac[5:-1].decode("ascii") # skip the header and end
         else:
             raise JVCCommunicationError("Unexpected response for get_mac()")
 
-    async def get_model(self):
+    async def get_model(self) -> str:
         model = await self._send_command(Commands.model.value)
-        if model is not None:
-            return model[5:-1].decode("ascii")
+        if model:
+            return model[5:-1].decode("ascii") # skip the header and end
         else:
             raise JVCCommunicationError("Unexpected response for get_model()")
 
-    async def power_state(self):
+    async def power_state(self) -> str:
         message = await self._send_command(Commands.power_status.value)
         return PowerStates(message).name
 
-    async def is_on(self):
+    async def is_on(self) -> bool:
         on = ["lamp_on", "reserved"]
         return await self.power_state() in on
 
