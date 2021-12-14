@@ -1,5 +1,5 @@
 import asyncio
-from jvccommands import Commands, PowerStates, ACKs
+from jvccommands import Commands, PowerStates
 
 class JVCProjectorClient():
     """JVC Projector Control"""
