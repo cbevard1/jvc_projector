@@ -3,6 +3,8 @@
 This module implements the JVC IP control API. It should work for
 most of their projectors.
 
+Use `async` prefix for asynchronous versions of the commands, eg, async_power_on()
+
 Example:
     Usage with the python console:
 
@@ -14,11 +16,13 @@ Example:
 """
 
 import asyncio
-from jvccommands import Commands, PowerStates
+from .jvccommands import Commands, PowerStates
 from datetime import datetime
 
 class JVCProjectorClient:
     """This class handles sending and receiving information from the projector.
+
+    Use `async` prefix for asynchronous versions of the commands, eg, async_power_on()
 
     Args:
         host (str): The ip address or hostname of the projector.
@@ -56,7 +60,7 @@ class JVCProjectorClient:
         self._delay_seconds: float = delay_seconds
         self._last_command_time = datetime.now()
 
-    async def _send_command(self, operation: bytes) -> bytes:
+    async def _async_send_command(self, operation: bytes) -> bytes:
         """Private method to send a raw command to the projector and receive a response.
 
         Args:
@@ -112,6 +116,11 @@ class JVCProjectorClient:
 
         return result
 
+    def _send_command(self, operation):
+        """Call async_send command synchronously"""
+        return asyncio.run(self._async_send_command(operation))
+
+
     async def _throttle(self):
         """Throttles the comminication."""
 
@@ -123,15 +132,23 @@ class JVCProjectorClient:
             return await asyncio.sleep(self._delay_seconds - delta)
         return
 
-    async def power_on(self) -> None:
+    async def async_power_on(self) -> None:
         """Powers the projector on."""
-        await self._send_command(Commands.power_on.value)
+        await self._async_send_command(Commands.power_on.value)
 
-    async def power_off(self) -> None:
+    def power_on(self) -> None:
+        """Powers the projector on."""
+        asyncio.run(self.async_power_on())
+
+    async def async_power_off(self) -> None:
         """Powers the projector off."""
-        await self._send_command(Commands.power_off.value)
+        await self._async_send_command(Commands.power_off.value)
 
-    async def command(self, command_string: str) -> bool:
+    def power_off(self) -> None:
+        """Powers the projector off."""
+        asyncio.run(self.async_power_off())
+
+    async def async_command(self, command_string: str) -> bool:
         """Send a known command to the projector.
 
         See the commands in jvccommands.Commands.
@@ -146,34 +163,64 @@ class JVCProjectorClient:
         if not hasattr(Commands, command_string):
             return False
         else:
-            await self._send_command(Commands[command_string].value)
+            await self._async_send_command(Commands[command_string].value)
             return True
 
-    async def get_mac(self) -> str:
+    def command(self, command_string: str) -> bool:
+        """Send a known command to the projector.
+
+        See the commands in jvccommands.Commands.
+
+        Args:
+            command_string (str): The name of the command in jvccommands.Commands
+
+        Returns:
+            bool: True if the command exists in jvccommands.Commands.
+                False otherwise.
+        """
+        return asyncio.run(self.async_command(command_string))
+
+    async def async_get_mac(self) -> str:
         """Get the MAC address of the projector."""
-        mac = await self._send_command(Commands.get_mac.value)
+        mac = await self._async_send_command(Commands.get_mac.value)
         if mac:
             return mac[5:-1].decode("ascii") # skip the header and end
         else:
             raise JVCCommunicationError("Unexpected response for get_mac()")
 
-    async def get_model(self) -> str:
+    def get_mac(self) -> str:
+        """Get the MAC address of the projector."""
+        return asyncio.run(self.async_get_mac())
+
+    async def async_get_model(self) -> str:
         """Get the model string of the projector."""
-        model = await self._send_command(Commands.model.value)
+        model = await self._async_send_command(Commands.model.value)
         if model:
             return model[5:-1].decode("ascii") # skip the header and end
         else:
             raise JVCCommunicationError("Unexpected response for get_model()")
 
-    async def power_state(self) -> str:
+    def get_model(self) -> str:
+        """Get the model string of the projector."""
+        return asyncio.run(self.async_get_model())
+
+    async def async_power_state(self) -> str:
         """Fetch the power state."""
-        message = await self._send_command(Commands.power_status.value)
+        message = await self._async_send_command(Commands.power_status.value)
         return PowerStates(message).name
 
-    async def is_on(self) -> bool:
+    def power_state(self) -> str:
+        """Fetch the power state."""
+        return asyncio.run(self.async_power_state())
+
+    async def async_is_on(self) -> bool:
         """Check if the projector is powered on."""
         on = ["lamp_on", "reserved"]
-        return await self.power_state() in on
+        return await self.async_power_state() in on
+
+    def is_on(self) -> bool:
+        """Check if the projector is powered on."""
+        return asyncio.run(self.async_is_on())
 
 
 class JVCCannotConnectError(Exception):
@@ -187,3 +234,4 @@ class JVCHandshakeError(Exception):
 class JVCCommunicationError(Exception):
     """Exception when there was a communication issue"""
     pass
+
