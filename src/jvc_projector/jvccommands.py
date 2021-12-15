@@ -76,10 +76,11 @@ class Commands(Enum):
 
     # power status query commands
     power_status   = REF + b"PW\n"
-    current_output = REF + b"IP\n"
+    current_input = REF + b"IP\n"
+    signal_active = REF + b"SC\n"
 
 
-class PowerStates(Enum):
+class Responses(Enum):
     standby   = RES + b"PW0\n"
     cooling   = RES + b"PW2\n"
     emergency = RES + b"PW4\n"
@@ -90,3 +91,9 @@ class PowerStates(Enum):
     # the lamp is on
     lamp_on  = RES + b"PW1\n"
     reserved = RES + b"PW3\n"
+
+    hdmi1 = RES + b"IP6\n"
+    hdmi2 = RES + b"IP7\n"
+
+    no_signal = RES + b"SC0\n"
+    active_signal = RES + b"SC1\n"

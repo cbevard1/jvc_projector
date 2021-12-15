@@ -16,8 +16,12 @@ Example:
 """
 
 import asyncio
-from .jvccommands import Commands, PowerStates
-from datetime import datetime
+from .jvccommands import Commands, Responses
+from aiolimiter import AsyncLimiter
+import time
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 class JVCProjectorClient:
     """This class handles sending and receiving information from the projector.
@@ -49,16 +53,17 @@ class JVCProjectorClient:
     def __init__(
             self,
             host: str,
-            port: int = 20554,
-            delay_seconds: float = 0.6,
-            connect_timeout_seconds: int = 10,
+            port: int = None,
+            delay_seconds: float = None,
+            connect_timeout_seconds: int = None,
     ) -> None:
 
         self.host: str = host
-        self.port: int = port
-        self._connect_timeout_seconds: int = connect_timeout_seconds
-        self._delay_seconds: float = delay_seconds
-        self._last_command_time = datetime.now()
+        self.port: int = port if port else 20554
+        self._delay_seconds: float = delay_seconds if delay_seconds else 0.7
+        self._connect_timeout_seconds: int = connect_timeout_seconds if connect_timeout_seconds else 10
+        self._last_command_time = time.time()
+        self._lock = asyncio.Lock()
 
     async def _async_send_command(self, operation: bytes) -> bytes:
         """Private method to send a raw command to the projector and receive a response.
@@ -80,6 +85,7 @@ class JVCProjectorClient:
         try:
             reader, writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), timeout=self._connect_timeout_seconds)
         except ConnectionRefusedError:
+            # print("error")
             raise JVCCannotConnectError("Could not connect to the projector. Check the Hostname/IP and ensure that 'Control4' is turned off in the network settings.")
 
         # 3 step handshake:
@@ -96,6 +102,7 @@ class JVCProjectorClient:
             raise JVCHandshakeError("Projector did not send PJACK.")
 
         # 3 step connection is verified, send the command
+        # TODO: implement timeout for this
         writer.write(operation)
 
         ack = b"\x06\x89\x01" + operation[3:5] + b"\x0A"
@@ -112,7 +119,11 @@ class JVCProjectorClient:
 
         writer.close()
 
-        self._last_command_time = datetime.now()
+        # loop = asyncio.get_event_loop()
+        # print(loop.time(), self._last_command_time, " ", loop.time() - self._last_command_time)
+        async with self._lock:
+            self._last_command_time = time.time()
+        # print("just ran", self._last_command_time)
 
         return result
 
@@ -127,7 +138,8 @@ class JVCProjectorClient:
         if self._delay_seconds == 0:
             return
 
-        delta = (datetime.now() - self._last_command_time).total_seconds()
+        delta = time.time() - self._last_command_time
+        _LOGGER.error("Waiting for %f seconds, default delay is: %f " % (self._delay_seconds - delta, self._delay_seconds))
         if self._delay_seconds > delta:
             return await asyncio.sleep(self._delay_seconds - delta)
         return
@@ -148,25 +160,22 @@ class JVCProjectorClient:
         """Powers the projector off."""
         asyncio.run(self.async_power_off())
 
-    async def async_command(self, command_string: str) -> bool:
+    async def async_command(self, command_string: str) -> None:
         """Send a known command to the projector.
 
         See the commands in jvccommands.Commands.
 
         Args:
             command_string (str): The name of the command in jvccommands.Commands
-
-        Returns:
-            bool: True if the command exists in jvccommands.Commands.
-                False otherwise.
         """
-        if not hasattr(Commands, command_string):
-            return False
-        else:
+        try:
+            if not await self.async_is_lamp_on():
+                raise JVCPoweredOffError("Can't send this command, the projector is not powered on.")
             await self._async_send_command(Commands[command_string].value)
-            return True
+        except ValueError:
+            raise JVCCommandNotFoundError("The requested command does not exist.")
 
-    def command(self, command_string: str) -> bool:
+    def command(self, command_string: str) -> None:
         """Send a known command to the projector.
 
         See the commands in jvccommands.Commands.
@@ -204,23 +213,46 @@ class JVCProjectorClient:
         """Get the model string of the projector."""
         return asyncio.run(self.async_get_model())
 
-    async def async_power_state(self) -> str:
+    async def async_get_power_state(self) -> str:
         """Fetch the power state."""
         message = await self._async_send_command(Commands.power_status.value)
-        return PowerStates(message).name
+        return Responses(message).name
 
-    def power_state(self) -> str:
+    def get_power_state(self) -> str:
         """Fetch the power state."""
-        return asyncio.run(self.async_power_state())
+        return asyncio.run(self.async_get_power_state())
 
     async def async_is_on(self) -> bool:
         """Check if the projector is powered on."""
         on = ["lamp_on", "reserved"]
-        return await self.async_power_state() in on
+        return await self.async_get_power_state() in on
+
+    async def async_is_lamp_on(self) -> bool:
+        """Check if the lamp is fully powered on."""
+        on = ["lamp_on"]
+        return await self.async_get_power_state() in on
+
+    def is_lamp_on(self) -> bool:
+        """Check if the lamp is fully powered on."""
+        return asyncio.run(self.async_is_lamp_on())
+
 
     def is_on(self) -> bool:
         """Check if the projector is powered on."""
         return asyncio.run(self.async_is_on())
+
+    async def async_get_input(self) -> dict[str, str]:
+        """Get the projector's active hdmi input and if it has an active signal."""
+        if not await self.async_is_lamp_on():
+            raise JVCPoweredOffError("Can't get input, the projector is powered off or starting up.")
+        inp = await self._async_send_command(Commands.current_input.value)
+        sig = await self._async_send_command(Commands.signal_active.value)
+        return {"input": Responses(inp).name, "signal": Responses(sig).name}
+
+    def get_input(self) -> dict[str, str]:
+        """Get the projector's active hdmi input and if it has an active signal."""
+        return asyncio.run(self.async_get_input())
+
 
 
 class JVCCannotConnectError(Exception):
@@ -235,3 +267,27 @@ class JVCCommunicationError(Exception):
     """Exception when there was a communication issue"""
     pass
 
+class JVCCommandNotFoundError(Exception):
+    """Exception when the requested command doesn't exist"""
+    pass
+
+class JVCPoweredOffError(Exception):
+    """Exception when projector is powered off and can't accept some commands."""
+    pass
+
+# async def coro(p):
+#     a = await p.async_get_mac()
+#     print(a)
+
+# async def main():
+#     p = JVCProjectorClient("192.168.1.14", delay_seconds=0.6)
+#     #limiter = AsyncLimiter(1, 1.5)
+#     while True:
+#         #async with limiter:
+#         #    if limiter.has_capacity(): print("has cap")
+#         await coro(p)
+
+
+
+# if __name__=="__main__":
+#     asyncio.run(main())
